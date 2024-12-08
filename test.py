@@ -55,8 +55,9 @@ def get_random_greeting(time_period):
 
 def respond_to_user(input_text):
     """根据用户输入返回对应的问候"""
-    time_period = match_keywords(input_text)
+    time_period = get_time_period()
     if time_period:
+        print(f"匹配到时段：{time_period}")
         return get_random_greeting(time_period)
     return "听不懂你在说什么～"
 
