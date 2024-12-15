@@ -3,7 +3,6 @@
 import logging
 import os
 import sys
-from datetime import datetime
 import random
 
 # 添加项目根目录到sys.path
@@ -50,71 +49,36 @@ keywords = {
 }
 
 
-def get_time_period():
-    """根据当前时间返回时段（早、中、晚）"""
-    current_hour = datetime.now().hour
-    if 5 <= current_hour < 11:
-        return "morning"
-    elif 11 <= current_hour < 17:
-        return "noon"
-    elif 17 <= current_hour <= 23 or 0 <= current_hour < 5:
-        return "evening"
-
-
-def match_keywords(input_text):
-    """匹配用户输入的内容所属的时段"""
-    for time_period, word_list in keywords.items():
-        if any(word in input_text.lower() for word in word_list):
+def get_time_period_from_keywords(user_message):
+    """根据用户输入的关键词匹配到对应的时段"""
+    for time_period, keyword_list in keywords.items():
+        if any(keyword in user_message.lower() for keyword in keyword_list):
             return time_period
     return None
 
 
-def get_random_greeting(time_period):
-    """随机返回指定时段的问候语"""
+def get_random_greeting_for_time_period(time_period):
+    """根据时段返回随机的问候语"""
     return random.choice(greetings[time_period])
 
 
-def respond_to_user(input_text):
-    """根据用户输入返回对应的问候"""
-    time_period = get_time_period()
-    if time_period:
-        print(f"匹配到时段：{time_period}")
-        return get_random_greeting(time_period)
-    return None
-
-
-# 查看功能开关状态
-def load_function_status(group_id):
-    return load_switch(group_id, "TimeAwareGreetings")
-
-
-# 保存功能开关状态
-def save_function_status(group_id, status):
-    save_switch(group_id, "TimeAwareGreetings", status)
-
-
-# 群消息处理函数
-async def handle_TimeAwareGreetings_group_message(websocket, msg):
+async def handle_TimeAwareGreetings_group_message(websocket, message):
+    """处理群组消息并根据关键词回复问候语"""
     # 确保数据目录存在
     os.makedirs(DATA_DIR, exist_ok=True)
+
     try:
-        user_id = str(msg.get("user_id"))
-        group_id = str(msg.get("group_id"))
-        raw_message = str(msg.get("raw_message"))
-        role = str(msg.get("sender", {}).get("role"))
-        message_id = str(msg.get("message_id"))
+        user_message = str(message.get("raw_message"))
+        message_id = str(message.get("message_id"))
+        group_id = str(message.get("group_id"))
 
-        # 获取当前时段
-        time_period = get_time_period(raw_message)
-
-
+        # 匹配发言中的关键词并确定时段
+        time_period = get_time_period_from_keywords(user_message)
         if time_period:
-            if raw_message in keywords[time_period]:
-                reply = respond_to_user(raw_message)
-                if reply:
-                    reply = f"[CQ:reply,id={message_id}]{reply}"
-                    await send_group_msg(websocket, group_id, reply)
+            greeting_reply = get_random_greeting_for_time_period(time_period)
+            reply_message = f"[CQ:reply,id={message_id}]{greeting_reply}"
+            await send_group_msg(websocket, group_id, reply_message)
 
     except Exception as e:
-        logging.error(f"处理TimeAwareGreetings群消息失败: {e}")
+        logging.error(f"处理群消息失败: {e}")
         return
