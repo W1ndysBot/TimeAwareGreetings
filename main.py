@@ -1,9 +1,8 @@
-# script/TimeAwareGreetings/main.py
-
 import logging
 import os
 import sys
 import random
+from datetime import datetime
 
 # 添加项目根目录到sys.path
 sys.path.append(
@@ -14,7 +13,7 @@ from app.config import owner_id
 from app.api import *
 from app.switch import load_switch, save_switch
 
-# 数据存储路径，实际开发时，请将TimeAwareGreetings替换为具体的数据存放路径
+# 数据存储路径，实际开发时，请将TimeAwareGreetings替换为具体的数据位置
 DATA_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     "data",
@@ -25,7 +24,6 @@ DATA_DIR = os.path.join(
 greetings = {
     "morning": [
         "早安～",
-        "早什么早，去睡觉！",
         "新的一天，加油！",
         "早上好，今天又是元气满满的一天！",
         "太阳都晒屁股了，快起床吧～",
@@ -65,13 +63,41 @@ greetings = {
     ],
 }
 
+# 不合时宜的提示语库
+misfit_greetings = {
+    "morning": [
+        "起什么起，滚去睡觉！",
+        "现在还不到早起的时候哦，继续睡吧！",
+    ],
+    "noon": [
+        "太阳都晒屁股了，这才起床啊！",
+        "中午了才说早安，你是猫头鹰吗？",
+    ],
+    "evening": [
+        "睡什么睡，还不到点！",
+        "现在就睡？难道不看星星吗？",
+    ],
+}
 
+# 时间段分类
+def get_current_time_period():
+    """根据当前时间返回对应的时间段"""
+    current_hour = datetime.now().hour
+    if 5 <= current_hour < 12:
+        return "morning"
+    elif 12 <= current_hour < 18:
+        return "noon"
+    elif 18 <= current_hour < 24:
+        return "evening"
+    else:
+        return "night"  # 夜晚特别处理
+
+# 根据关键词判断时段
 keywords = {
     "morning": ["早安", "早上好", "早", "起床", "起床了"],
     "noon": ["中午好", "午安", "午休", "午休了"],
     "evening": ["晚安", "晚上好", "睡觉", "休息", "休息了", "睡觉了"],
 }
-
 
 def get_time_period_from_keywords(user_message):
     """根据用户输入的关键词匹配到对应的时段"""
@@ -80,11 +106,13 @@ def get_time_period_from_keywords(user_message):
             return time_period
     return None
 
-
 def get_random_greeting_for_time_period(time_period):
     """根据时段返回随机的问候语"""
     return random.choice(greetings[time_period])
 
+def get_random_misfit_greeting_for_time_period(time_period):
+    """根据时段返回随机的不合时宜提示"""
+    return random.choice(misfit_greetings[time_period])
 
 async def handle_TimeAwareGreetings_group_message(websocket, message):
     """处理群组消息并根据关键词回复问候语"""
@@ -97,9 +125,17 @@ async def handle_TimeAwareGreetings_group_message(websocket, message):
         group_id = str(message.get("group_id"))
 
         # 匹配发言中的关键词并确定时段
-        time_period = get_time_period_from_keywords(user_message)
-        if time_period:
-            greeting_reply = get_random_greeting_for_time_period(time_period)
+        user_time_period = get_time_period_from_keywords(user_message)
+        current_time_period = get_current_time_period()
+
+        if user_time_period:
+            if user_time_period == current_time_period:
+                # 时间匹配，发送正常问候语
+                greeting_reply = get_random_greeting_for_time_period(user_time_period)
+            else:
+                # 时间不匹配，发送不合时宜的提示
+                greeting_reply = get_random_misfit_greeting_for_time_period(user_time_period)
+
             reply_message = f"[CQ:reply,id={message_id}]{greeting_reply}"
             await send_group_msg(websocket, group_id, reply_message)
 
